@@ -190,4 +190,4 @@ Things I'm considering adding:
 
 ## Author
 
-Built by Leitanthem Alex -Electronics and Communications Engineering student.
+Built by Leitanthem Alex - Electronics and Communications Engineering student Manipur Institute of Technology.
