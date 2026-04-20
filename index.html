@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Phased Array Beamforming Simulator</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #04080f;
+      --surface:   #080e1a;
+      --panel:     #0d1525;
+      --border:    #162035;
+      --blue:      #2f80ed;
+      --blue-dim:  rgba(47,128,237,0.12);
+      --blue-glow: rgba(47,128,237,0.25);
+      --cyan:      #56ccf2;
+      --amber:     #f2994a;
+      --red:       #eb5757;
+      --text:      #e0eaff;
+      --muted:     #4a6080;
+      --sub:       #8ba4c0;
+      --mono:      'Space Mono', monospace;
+      --sans:      'DM Sans', sans-serif;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    /* ── SCANLINE OVERLAY ── */
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0,0,0,0.07) 2px,
+        rgba(0,0,0,0.07) 4px
+      );
+      pointer-events: none;
+      z-index: 999;
+    }
+
+    /* ── LAYOUT ── */
+    .shell {
+      min-height: 100vh;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 0 20px;
+    }
+
+    /* ── HEADER ── */
+    header {
+      padding: 28px 0 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .header-tag {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--blue);
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+    }
+    h1 {
+      font-family: var(--mono);
+      font-size: clamp(16px, 3vw, 22px);
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -0.01em;
+    }
+    h1 span { color: var(--blue); }
+    .header-sub {
+      font-size: 12px;
+      color: var(--muted);
+      font-family: var(--mono);
+    }
+
+    /* ── MAIN ── */
+    main {
+      padding: 24px 0;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    /* ── PANEL ── */
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .panel-label {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--muted);
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      padding: 8px 14px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .panel-label::before {
+      content: '';
+      display: inline-block;
+      width: 5px; height: 5px;
+      background: var(--blue);
+      border-radius: 50%;
+      box-shadow: 0 0 6px var(--blue);
+    }
+
+    /* ── CONTROLS ── */
+    .controls-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1px;
+      background: var(--border);
+    }
+    .ctrl {
+      background: var(--surface);
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .ctrl-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+    }
+    .ctrl-name {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+    }
+    .ctrl-val {
+      font-family: var(--mono);
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--blue);
+    }
+
+    input[type=range] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 2px;
+      background: var(--border);
+      border-radius: 2px;
+      outline: none;
+      cursor: pointer;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 14px; height: 14px;
+      background: var(--blue);
+      border-radius: 50%;
+      box-shadow: 0 0 8px var(--blue-glow);
+      cursor: pointer;
+      transition: box-shadow 0.2s;
+    }
+    input[type=range]:hover::-webkit-slider-thumb {
+      box-shadow: 0 0 14px var(--blue);
+    }
+    input[type=range]::-moz-range-thumb {
+      width: 14px; height: 14px;
+      background: var(--blue);
+      border: none;
+      border-radius: 50%;
+      cursor: pointer;
+    }
+
+    select {
+      background: var(--panel);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 6px 10px;
+      font-family: var(--mono);
+      font-size: 11px;
+      outline: none;
+      cursor: pointer;
+      width: 100%;
+    }
+    select:focus { border-color: var(--blue); }
+
+    /* ── WARNING ── */
+    .warning {
+      margin: 0 14px 14px;
+      padding: 8px 12px;
+      background: rgba(242,153,74,0.08);
+      border: 1px solid rgba(242,153,74,0.3);
+      border-radius: 3px;
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--amber);
+      letter-spacing: 0.04em;
+      display: none;
+    }
+    .warning.visible { display: block; }
+
+    /* ── CANVAS ── */
+    #canvas {
+      display: block;
+      width: 100%;
+      background: var(--bg);
+      border-top: 1px solid var(--border);
+    }
+
+    /* ── METRICS ── */
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1px;
+      background: var(--border);
+    }
+    .metric {
+      background: var(--surface);
+      padding: 14px 16px;
+      text-align: center;
+    }
+    .metric-label {
+      font-family: var(--mono);
+      font-size: 9px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      margin-bottom: 6px;
+    }
+    .metric-value {
+      font-family: var(--mono);
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--cyan);
+      line-height: 1;
+    }
+    .metric-unit {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 3px;
+      font-family: var(--mono);
+    }
+
+    /* ── FORMULA ── */
+    .formula-toggle {
+      background: none;
+      border: none;
+      cursor: pointer;
+      width: 100%;
+      padding: 10px 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      text-align: left;
+      transition: color 0.2s;
+    }
+    .formula-toggle:hover { color: var(--sub); }
+    .formula-toggle .arrow { transition: transform 0.25s; }
+    .formula-toggle.open .arrow { transform: rotate(180deg); }
+
+    .formula-body {
+      display: none;
+      padding: 0 16px 16px;
+      border-top: 1px solid var(--border);
+    }
+    .formula-body.open { display: block; }
+
+    .formula-eq {
+      font-family: var(--mono);
+      font-size: 13px;
+      color: var(--cyan);
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 12px 14px;
+      margin: 12px 0 10px;
+      line-height: 1.8;
+    }
+    .formula-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    .formula-table td { padding: 4px 8px 4px 0; vertical-align: top; }
+    .formula-table td:first-child {
+      font-family: var(--mono);
+      color: var(--blue);
+      white-space: nowrap;
+      width: 36px;
+    }
+    .formula-table td:last-child { color: var(--sub); }
+
+    /* ── FOOTER ── */
+    footer {
+      padding: 14px 0;
+      border-top: 1px solid var(--border);
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--muted);
+      display: flex;
+      justify-content: space-between;
+    }
+
+    @media (max-width: 520px) {
+      .controls-grid { grid-template-columns: 1fr; }
+      .metrics { grid-template-columns: 1fr; }
+      h1 { font-size: 15px; }
+    }
+  </style>
+</head>
+<body>
+<div class="shell">
+
+  <header>
+    <div class="header-tag">ECE Portfolio Project By Leitanthem Alex</div>
+    <h1>Phased Array <span>Beamforming</span> Simulator</h1>
+    <div class="header-sub">1D Uniform Linear Array — Array Factor visualizer</div>
+  </header>
+
+  <main>
+
+    <!-- CONTROLS -->
+    <div class="panel">
+      <div class="panel-label">Array Parameters</div>
+      <div class="controls-grid">
+
+        <div class="ctrl">
+          <div class="ctrl-top">
+            <span class="ctrl-name">Elements (N)</span>
+            <span class="ctrl-val" id="lbl-N">8</span>
+          </div>
+          <input type="range" id="sl-N" min="2" max="32" step="1" value="8" />
+        </div>
+
+        <div class="ctrl">
+          <div class="ctrl-top">
+            <span class="ctrl-name">Steering Angle</span>
+            <span class="ctrl-val" id="lbl-steer">0°</span>
+          </div>
+          <input type="range" id="sl-steer" min="-60" max="60" step="1" value="0" />
+        </div>
+
+        <div class="ctrl">
+          <div class="ctrl-top">
+            <span class="ctrl-name">Element Spacing</span>
+            <span class="ctrl-val" id="lbl-spacing">0.50λ</span>
+          </div>
+          <input type="range" id="sl-spacing" min="0.25" max="1.0" step="0.01" value="0.5" />
+        </div>
+
+        <div class="ctrl">
+          <div class="ctrl-top">
+            <span class="ctrl-name">Amplitude Taper</span>
+          </div>
+          <select id="sel-taper">
+            <option value="uniform">Uniform  (SLL: −13 dB)</option>
+            <option value="hanning">Hanning  (SLL: −31 dB)</option>
+            <option value="chebyshev">Chebyshev (SLL: −30 dB)</option>
+          </select>
+        </div>
+
+      </div>
+      <div class="warning" id="warning">
+        ⚠ GRATING LOBES MAY APPEAR — spacing > 0.5λ while off-broadside
+      </div>
+    </div>
+
+    <!-- CANVAS -->
+    <div class="panel">
+      <div class="panel-label">Radiation Pattern (polar · dB scale)</div>
+      <canvas id="canvas"></canvas>
+    </div>
+
+    <!-- METRICS -->
+    <div class="panel">
+      <div class="panel-label">Live Metrics</div>
+      <div class="metrics">
+        <div class="metric">
+          <div class="metric-label">Peak Gain</div>
+          <div class="metric-value" id="m-gain">—</div>
+          <div class="metric-unit">dBi</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">3 dB Beamwidth</div>
+          <div class="metric-value" id="m-bw">—</div>
+          <div class="metric-unit">degrees</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">First Sidelobe</div>
+          <div class="metric-value" id="m-sll">—</div>
+          <div class="metric-unit">dB</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FORMULA -->
+    <div class="panel">
+      <button class="formula-toggle" id="formula-toggle">
+        <span>Array Factor Formula</span>
+        <span class="arrow">▼</span>
+      </button>
+      <div class="formula-body" id="formula-body">
+        <div class="formula-eq">
+          AF(θ) = Σ aₙ · exp( j · (n·k·d·sin(θ) + φₙ) )<br>
+          <span style="color:var(--muted);font-size:11px">steering law: φₙ = −n · k · d · sin(θ₀)</span>
+        </div>
+        <table class="formula-table">
+          <tr><td>aₙ</td><td>Amplitude weight of element n (tapering)</td></tr>
+          <tr><td>n</td><td>Element index (0 … N−1)</td></tr>
+          <tr><td>k</td><td>Wavenumber = 2π/λ</td></tr>
+          <tr><td>d</td><td>Inter-element spacing</td></tr>
+          <tr><td>θ</td><td>Observation angle from broadside</td></tr>
+          <tr><td>φₙ</td><td>Phase shift applied to element n</td></tr>
+          <tr><td>θ₀</td><td>Desired beam steering angle</td></tr>
+        </table>
+      </div>
+    </div>
+
+  </main>
+
+  <footer>
+    <span>Phased Array Beamforming Simulator</span>
+    <span>ECE Portfolio · 2025</span>
+  </footer>
+
+</div>
+
+<script>
+// ─── State ────────────────────────────────────────────────────────────────────
+const state = { N: 8, steer: 0, spacing: 0.5, taper: 'uniform' };
+
+// ─── Controls ─────────────────────────────────────────────────────────────────
+document.getElementById('sl-N').addEventListener('input', e => {
+  state.N = parseInt(e.target.value);
+  document.getElementById('lbl-N').textContent = state.N;
+  update();
+});
+document.getElementById('sl-steer').addEventListener('input', e => {
+  state.steer = parseInt(e.target.value);
+  document.getElementById('lbl-steer').textContent = state.steer + '°';
+  update();
+});
+document.getElementById('sl-spacing').addEventListener('input', e => {
+  state.spacing = parseFloat(e.target.value);
+  document.getElementById('lbl-spacing').textContent = state.spacing.toFixed(2) + 'λ';
+  update();
+});
+document.getElementById('sel-taper').addEventListener('change', e => {
+  state.taper = e.target.value;
+  update();
+});
+
+// Formula toggle
+document.getElementById('formula-toggle').addEventListener('click', () => {
+  const btn = document.getElementById('formula-toggle');
+  const body = document.getElementById('formula-body');
+  btn.classList.toggle('open');
+  body.classList.toggle('open');
+});
+
+// ─── Math ─────────────────────────────────────────────────────────────────────
+function getWeights(N, taper) {
+  return Array.from({ length: N }, (_, n) => {
+    if (taper === 'hanning') return 0.5 - 0.5 * Math.cos(2 * Math.PI * n / (N - 1));
+    if (taper === 'chebyshev') return Math.abs(Math.cos(Math.PI * n / (N - 1)));
+    return 1;
+  });
+}
+
+function computePattern(N, steerDeg, spacingL, taper) {
+  const k = 2 * Math.PI;
+  const t0 = steerDeg * Math.PI / 180;
+  const a = getWeights(N, taper);
+
+  const angles = [], mags = [];
+  for (let t = -90; t <= 90; t += 0.5) {
+    const theta = t * Math.PI / 180;
+    let re = 0, im = 0;
+    for (let n = 0; n < N; n++) {
+      const psi = n * k * spacingL * (Math.sin(theta) - Math.sin(t0));
+      re += a[n] * Math.cos(psi);
+      im += a[n] * Math.sin(psi);
+    }
+    angles.push(t);
+    mags.push(Math.sqrt(re * re + im * im));
+  }
+
+  const maxMag = Math.max(...mags);
+  const pattern = angles.map((angle, i) => ({
+    angle,
+    dB: Math.max(-40, 20 * Math.log10(mags[i] / maxMag))
+  }));
+
+  // Peak gain
+  const sum = a.reduce((s, v) => s + v, 0);
+  const peakGain = 20 * Math.log10(sum);
+
+  // 3dB beamwidth — walk outward from peak
+  const peakIdx = pattern.reduce((b, p, i) => p.dB > pattern[b].dB ? i : b, 0);
+  let lo = peakIdx, hi = peakIdx;
+  while (lo > 0 && pattern[lo - 1].dB >= -3) lo--;
+  while (hi < pattern.length - 1 && pattern[hi + 1].dB >= -3) hi++;
+  const beamwidth = (hi - lo) * 0.5;
+  const bwAngles = pattern.slice(lo, hi + 1).map(p => p.angle);
+
+  // Sidelobe level
+  const outside = [...pattern.slice(0, lo), ...pattern.slice(hi + 1)];
+  const sll = outside.length ? Math.max(...outside.map(p => p.dB)) : -40;
+
+  return { pattern, peakGain, beamwidth, bwAngles, sll };
+}
+
+// ─── Drawing ──────────────────────────────────────────────────────────────────
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+
+function resizeCanvas() {
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.offsetWidth;
+  const h = Math.round(w * 0.68);
+  canvas.width = w * dpr;
+  canvas.height = h * dpr;
+  canvas.style.height = h + 'px';
+  ctx.scale(dpr, dpr);
+  return { w, h };
+}
+
+function draw(pattern, bwAngles, steerDeg) {
+  const { w, h } = resizeCanvas();
+  ctx.clearRect(0, 0, w, h);
+
+  const cx = w / 2;
+  const cy = h - 32;
+  const R  = Math.min(w / 2 - 52, h - 48);
+  const MIN_DB = -40;
+
+  function toXY(angleDeg, dB) {
+    const r = Math.max(0, (dB - MIN_DB) / (0 - MIN_DB)) * R;
+    const rad = (90 - angleDeg) * Math.PI / 180;
+    return [cx + r * Math.cos(rad), cy - r * Math.sin(rad)];
+  }
+
+  // ── dB rings ──
+  [{ db: -30, dash: true }, { db: -20, dash: true }, { db: -10, dash: true }, { db: 0, dash: false }].forEach(({ db, dash }) => {
+    const r = ((db - MIN_DB) / (0 - MIN_DB)) * R;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, Math.PI, 0);
+    ctx.strokeStyle = db === 0 ? '#162035' : '#0d1a2e';
+    ctx.lineWidth = db === 0 ? 1 : 0.6;
+    if (dash) ctx.setLineDash([3, 5]); else ctx.setLineDash([]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#2a3f58';
+    ctx.font = `9px 'Space Mono', monospace`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(db + 'dB', cx + r + 4, cy - 2);
+  });
+
+  // ── angle spokes & labels ──
+  [-90, -60, -30, 0, 30, 60, 90].forEach(a => {
+    const rad = (90 - a) * Math.PI / 180;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + R * Math.cos(rad), cy - R * Math.sin(rad));
+    ctx.strokeStyle = '#0d1a2e';
+    ctx.lineWidth = 0.6;
+    ctx.stroke();
+    const lx = cx + (R + 22) * Math.cos(rad);
+    const ly = cy - (R + 22) * Math.sin(rad);
+    ctx.fillStyle = '#2a3f58';
+    ctx.font = `10px 'Space Mono', monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(a + '°', lx, ly);
+  });
+
+  // ── 3dB beamwidth arc ──
+  if (bwAngles.length >= 2) {
+    const arcR = R * 0.90;
+    const a1 = (90 - bwAngles[bwAngles.length - 1]) * Math.PI / 180;
+    const a2 = (90 - bwAngles[0]) * Math.PI / 180;
+    ctx.beginPath();
+    ctx.arc(cx, cy, arcR, a1, a2);
+    ctx.strokeStyle = 'rgba(242,153,74,0.55)';
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+  }
+
+  // ── pattern fill ──
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  pattern.forEach(p => {
+    const [x, y] = toXY(p.angle, p.dB);
+    ctx.lineTo(x, y);
+  });
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(47,128,237,0.07)';
+  ctx.fill();
+
+  // ── pattern line ──
+  ctx.beginPath();
+  pattern.forEach((p, i) => {
+    const [x, y] = toXY(p.angle, p.dB);
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  });
+  ctx.strokeStyle = '#2f80ed';
+  ctx.lineWidth = 1.8;
+  ctx.stroke();
+
+  // ── steering line ──
+  const sRad = (90 - steerDeg) * Math.PI / 180;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.lineTo(cx + R * Math.cos(sRad), cy - R * Math.sin(sRad));
+  ctx.strokeStyle = 'rgba(235,87,87,0.8)';
+  ctx.lineWidth = 1.2;
+  ctx.setLineDash([5, 4]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // ── baseline ──
+  ctx.beginPath();
+  ctx.moveTo(cx - R, cy);
+  ctx.lineTo(cx + R, cy);
+  ctx.strokeStyle = '#162035';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // ── legend ──
+  const legend = [
+    { color: '#2f80ed', dash: false, label: 'Array Factor' },
+    { color: 'rgba(235,87,87,0.8)', dash: true, label: 'Steering dir.' },
+    { color: 'rgba(242,153,74,0.6)', dash: false, label: '3 dB width' },
+  ];
+  ctx.font = `9px 'Space Mono', monospace`;
+  legend.forEach(({ color, dash, label }, i) => {
+    const lx = 10, ly = 14 + i * 16;
+    ctx.beginPath();
+    if (dash) ctx.setLineDash([4, 3]);
+    ctx.moveTo(lx, ly); ctx.lineTo(lx + 18, ly);
+    ctx.strokeStyle = color; ctx.lineWidth = 1.8;
+    ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = '#2a3f58';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillText(label, lx + 22, ly);
+  });
+}
+
+// ─── Update ───────────────────────────────────────────────────────────────────
+function update() {
+  const { pattern, peakGain, beamwidth, bwAngles, sll } = computePattern(
+    state.N, state.steer, state.spacing, state.taper
+  );
+
+  draw(pattern, bwAngles, state.steer);
+
+  document.getElementById('m-gain').textContent = peakGain.toFixed(1);
+  document.getElementById('m-bw').textContent   = beamwidth.toFixed(1);
+  document.getElementById('m-sll').textContent  = sll.toFixed(1);
+
+  const warn = document.getElementById('warning');
+  warn.classList.toggle('visible', state.spacing > 0.5 && state.steer !== 0);
+}
+
+window.addEventListener('resize', update);
+update();
+</script>
+</body>
+</html>
