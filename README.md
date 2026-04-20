@@ -4,7 +4,7 @@ An interactive, browser-based simulator for visualizing how phased array antenna
 
 **[▶ Live Demo](https://YOUR-USERNAME.github.io/beamforming-simulator)**
 
-![Simulator screenshot](screenshot.gif)
+![Simulator screenshot](screenshot.png)
 
 ---
 
