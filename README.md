@@ -2,7 +2,7 @@
 
 An interactive, browser-based simulator for visualizing how phased array antennas work — built as part of my Electronics and Communications Engineering portfolio.
 
-**[▶ Live Demo](https://YOUR-USERNAME.github.io/beamforming_simulator)**
+**[▶ Live Demo](https://alexleitanthem.github.io/beamforming_simulator/)**
 
 ![Simulator screenshot](screenshot.png)
 
